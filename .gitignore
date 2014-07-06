@@ -1,5 +1,6 @@
 # idea project settings #
 *.iml
+.idea/**
 
 # Package Files #
 *.war
