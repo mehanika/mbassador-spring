@@ -3,6 +3,7 @@ package org.mbassy.test.proxies;
 import net.engio.mbassy.bus.MBassador;
 import net.engio.mbassy.bus.config.BusConfiguration;
 import org.junit.Test;
+import org.mbassy.spring.SpringSubscriptionManagerProvider;
 import org.mbassy.test.messages.ListenerTrackingMessage;
 import org.mbassy.test.proxies.beans.*;
 import org.springframework.cache.annotation.EnableCaching;
@@ -55,6 +56,42 @@ public class CglibProxiesTest extends AbstractProxiesTest
 	@Test
 	public void defaultBusSupportsCglibProxies() {
 		MBassador<ListenerTrackingMessage> bus = new MBassador<ListenerTrackingMessage>( BusConfiguration.Default() );
+
+		// Subscribe all event listeners
+		bus.subscribe( serviceWithCacheableHandlerImpl );
+		bus.subscribe( serviceWithCacheableHandlerImplCacheableOnHandler );
+		bus.subscribe( serviceWithCacheableMethodImpl );
+		bus.subscribe( serviceWithCacheableMethodImplCacheableOnHandler );
+		bus.subscribe( serviceWithHandlerImplCacheableOnHandler );
+		bus.subscribe( serviceWithHandlerImplCacheableOnMethod );
+		bus.subscribe( serviceWithoutCacheableImplCacheableOnHandler );
+		bus.subscribe( serviceWithoutCacheableImplCacheableOnMethod );
+
+		bus.publish( message );
+
+		assertTrue( message.isReceiver( ServiceWithCacheableHandlerImpl.class ) );
+		assertFalse( message.isReceiver( ServiceWithCacheableHandlerImplCacheableOnHandler.class ) );
+		assertTrue( message.isReceiver( ServiceWithCacheableMethodImpl.class ) );
+		assertFalse( message.isReceiver( ServiceWithCacheableMethodImplCacheableOnHandler.class ) );
+		assertFalse( message.isReceiver( ServiceWithHandlerImplCacheableOnHandler.class ) );
+		assertTrue( message.isReceiver( ServiceWithHandlerImplCacheableOnMethod.class ) );
+		assertFalse( message.isReceiver( ServiceWithoutCacheableImplCacheableOnHandler.class ) );
+		assertTrue( message.isReceiver( ServiceWithoutCacheableImplCacheableOnMethod.class ) );
+
+		// Verify cache intercepts
+		verify( testCache, never() ).get( "ServiceWithCacheableHandler" );
+		verify( testCache, atLeastOnce() ).get( "ServiceWithCacheableHandlerImplCacheableOnHandler" );
+		verify( testCache, atLeastOnce() ).get( "ServiceWithCacheableMethodImplCacheableOnHandler" );
+		verify( testCache, atLeastOnce() ).get( "ServiceWithHandlerImplCacheableOnHandler" );
+		verify( testCache, atLeastOnce() ).get( "ServiceWithoutCacheableImplCacheableOnHandler" );
+	}
+
+	@Test
+	public void springBusSupportsCglibProxies() {
+		BusConfiguration configuration = BusConfiguration.Default();
+		configuration.setSubscriptionManagerProvider( new SpringSubscriptionManagerProvider() );
+
+		MBassador<ListenerTrackingMessage> bus = new MBassador<ListenerTrackingMessage>( configuration );
 
 		// Subscribe all event listeners
 		bus.subscribe( serviceWithCacheableHandlerImpl );

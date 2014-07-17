@@ -8,8 +8,10 @@ import net.engio.mbassy.listener.MetadataReader;
 import net.engio.mbassy.subscription.Subscription;
 import net.engio.mbassy.subscription.SubscriptionFactory;
 import net.engio.mbassy.subscription.SubscriptionManager;
+import org.springframework.aop.config.AopConfigUtils;
 import org.springframework.aop.support.AopUtils;
 
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -81,7 +83,7 @@ public class SpringSubscriptionManager extends SubscriptionManager
 	}
 
 	private Class determineListenerClass( Object listener ){
-		return AopUtils.getTargetClass(listener );
+		return AopUtils.getTargetClass( listener );
 	}
 
 	public void subscribe( Object listener ) {
@@ -96,6 +98,9 @@ public class SpringSubscriptionManager extends SubscriptionManager
 			if ( subscriptionsByListener == null ) {
 				List<MessageHandler> messageHandlers =
 						metadataReader.getMessageListener( listenerClass ).getHandlers();
+
+				buildProxyHandlers( listener, listenerClass, messageHandlers );
+
 				if ( messageHandlers.isEmpty() ) {  // remember the class as non listening class if no handlers are found
 					nonListeners.add( listenerClass );
 					return;
@@ -120,6 +125,40 @@ public class SpringSubscriptionManager extends SubscriptionManager
 		}
 		catch ( Exception e ) {
 			throw new RuntimeException( e );
+		}
+	}
+
+	private void buildProxyHandlers( Object listener, Class<?> listenerClass, List<MessageHandler> messageHandlers ) {
+		if ( AopUtils.isJdkDynamicProxy( listener ) ) {
+			Map<Method, Integer> methodHandlerPosition = new HashMap<Method, Integer>();
+			for ( int i = 0; i < messageHandlers.size(); i++ ) {
+				MessageHandler handler = messageHandlers.get( i );
+
+				methodHandlerPosition.put( handler.getHandler(), i );
+			}
+
+			Class<?> proxyClass = listener.getClass();
+
+			for( Method proxyMethod : org.springframework.util.ReflectionUtils.getAllDeclaredMethods( proxyClass ) ) {
+				Method targetMethod = AopUtils.getMostSpecificMethod( proxyMethod, listenerClass );
+
+				Integer handlerIndex = methodHandlerPosition.get( targetMethod );
+
+				if ( handlerIndex != null ) {
+					MessageHandler proxyHandler = new ProxyMessageHandler( messageHandlers.get( handlerIndex ), proxyMethod );
+
+					messageHandlers.set( handlerIndex, proxyHandler );
+				}
+			}
+
+			for ( int i = 0; i<  messageHandlers.size(); i++ ) {
+				MessageHandler handler = messageHandlers.get(i);
+
+				if ( !(handler instanceof ProxyMessageHandler ) ) {
+					messageHandlers.set( i, new ProxyMessageHandler( handler ));
+				}
+			}
+
 		}
 	}
 
