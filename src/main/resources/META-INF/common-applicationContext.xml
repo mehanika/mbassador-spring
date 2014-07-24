@@ -31,13 +31,9 @@
 	<context:spring-configured/>
 
 
-
-
 	<!-- BeanPostProcessor that processes PersistenceUnit and PersistenceContext annotations, for injection of the corresponding JPA resources
 	EntityManagerFactory and EntityManager. Any such annotated fields or methods in any Spring-managed object will automatically be injected. -->
 	<bean class="org.springframework.orm.jpa.support.PersistenceAnnotationBeanPostProcessor"/>
-
-
 
     <import resource="hibernate-integration.xml" />
 
